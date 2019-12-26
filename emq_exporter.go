@@ -87,8 +87,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	totalScrapes.Inc()
 	ch <- totalScrapes
 
+	replacer := strings.NewReplacer(".", "_")
 	metricList := make([]metric, 0, len(e.metrics))
 	for _, i := range e.metrics {
+		i.name = replacer.Replace(i.name)
 		metricList = append(metricList, *i)
 	}
 	e.mu.Unlock()
