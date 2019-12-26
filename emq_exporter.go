@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"net"
 
 	"github.com/nuvo/emq_exporter/internal/client"
 	"github.com/prometheus/client_golang/prometheus"
@@ -169,8 +170,7 @@ func main() {
 		metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
 		emqURI        = kingpin.Flag("emq.uri", "HTTP API address of the EMQ node.").Default("http://127.0.0.1:18083").Short('u').String()
 		emqCreds      = kingpin.Flag("emq.creds-file", "Path to json file containing emq credentials").Default("./auth.json").Short('f').String()
-		emqNodeName   = kingpin.Flag("emq.node", "Node name of the emq node to scrape.").Default("emq@127.0.0.1").Short('n').String()
-		emqAPIVersion = kingpin.Flag("emq.api-version", "The API version used by EMQ. Valid values: [v2, v3]").Default("v2").Enum("v2", "v3")
+		emqAPIVersion = kingpin.Flag("emq.api-version", "The API version used by EMQ. Valid values: [v2, v3]").Default("v3").Enum("v2", "v3")
 	)
 
 	log.AddFlags(kingpin.CommandLine)
@@ -186,10 +186,22 @@ func main() {
 		log.Fatalf("Failed to load credentials: %v", err)
 	}
 
+	conn, error := net.Dial("udp", "8.8.8.8:80")
+	if error != nil {
+		fmt.Println(error)
+	}
+
+	defer conn.Close()
+	ipAddressPort := fmt.Sprintf("%s", conn.LocalAddr().(*net.UDPAddr))
+	ipAddress := strings.Split(ipAddressPort, ":")[0]
+
+	emqNode := fmt.Sprintf("emqx@%s", ipAddress)
+	fmt.Println(emqNode)
+
 	log.Infoln("Starting emq_exporter")
 	log.Infof("Version %s (git-%s)", GitTag, GitCommit)
 
-	c := client.NewClient(*emqURI, *emqNodeName, *emqAPIVersion, username, password)
+	c := client.NewClient(*emqURI, emqNode, *emqAPIVersion, username, password)
 
 	exporter := NewExporter(c)
 
